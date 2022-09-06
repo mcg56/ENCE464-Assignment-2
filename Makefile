@@ -9,8 +9,10 @@ LDLIBS = -lpthread
 
 poisson: poisson.c
 
+.PHONY: test
 test: poisson
 	./test.sh
 
+.PHONY: clean
 clean:
 	rm -f poisson *.o
