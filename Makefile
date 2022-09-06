@@ -1,9 +1,13 @@
 all: poisson
 
 # -g outputs debugging information
+# -Wall enables all warnings
+CFLAGS = -g -Wall
+
 # -lpthread links the pthread library
+LDLIBS = -lpthread
+
 poisson: poisson.c
-	gcc -g -o poisson poisson.c -lpthread
 
 test: poisson
 	./test.sh
