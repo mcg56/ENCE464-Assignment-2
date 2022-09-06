@@ -260,8 +260,18 @@ the output from profiling tools.
 
 We expect you to use git for version control.  However, you must
 submit your code as a \code{.zip} file so it can be checked for
-numerical accuracy and plagiarism.  Your fastest implementation must
-be able to be built by typing \code{make} at the command line.
+numerical accuracy and plagiarism.
 
+Your fastest implementation must be an executable named \code{poisson}
+that is built by running \code{make} at the command line.  For testing
+purposes, it must accept two command line flags:
+\begin{itemize}
+  \item \code{-i}: the number of iterations
+  \item \code{-n}: the edge length of the cube.
+\end{itemize}
+It must print out the resulting values from the middle slice of the
+cube in space-separated format to five decimal places.  (You can just
+use the command line argument parsing and output formatting code from
+the provided \code{poisson.c} example.)
 
 \end{document}
