@@ -58,7 +58,7 @@ The operating system kernel provides functions to create new threads in your
 program on the fly. In C on Linux, this is provided through the POSIX Threads
 (pthread) library, and in C++ using the standard library (thread). Both of these
 methods take a pointer to a function that is executed as soon as the thread is
-created. See `threads.c' for an example using POSIX threads. It works by
+created. See `demos/threads.c' for an example using POSIX threads. It works by
 creating a collection of worker thread which solve the problem, and then waiting
 until they have finished. The waiting method is the `join()' function which
 suspends the main thread and so does not waste extra CPU time, and then returns
