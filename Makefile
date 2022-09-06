@@ -9,10 +9,16 @@ LDLIBS = -lpthread
 
 poisson: poisson.c
 
+.PHONY: disassembly
+disassembly: poisson.s
+
+poisson.s: poisson
+	objdump -S --disassemble $< > $@
+
 .PHONY: test
 test: poisson
 	./test.sh
 
 .PHONY: clean
 clean:
-	rm -f poisson *.o
+	rm -f poisson *.o *.s
