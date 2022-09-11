@@ -1,8 +1,7 @@
-
 ENCE461 Assignment 2 Template
 =============================
 
-See assignment instructions [here](doc/instructions.pdf)
+See assignment instructions [here](doc/instructions/instructions.pdf)
 
 Contents
  - `doc/` - assignment instructions, lab notes, report template.
@@ -14,16 +13,13 @@ Contents
 Building
 --------
 
-Build instructions are inside `poisson.c` and `threads.c`. You can automate this
-with makefiles if you want.
+Build instructions are provided in the Makefile.  Use make to build.
 
 
 Testing
 -------
 
-Build your solution.
-
-Run `./test.sh`. *This scripts expects a `poisson` program to be present.*
+Run `make test`
 
 It will automatically run your solution for three cube sizes and compare the
 output against some correct reference files. **Do not edit these reference
