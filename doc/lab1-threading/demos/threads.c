@@ -9,7 +9,7 @@
  * Example of using pthread to create a set of worker threads.
  *
  * BUILDING:
- * gcc -o threads threads.c -lpthread
+ * gcc -o threads -pthread threads.c
  *
  * TODO:
  * 1 - Read through this example, understand how threads work.

@@ -1,12 +1,22 @@
 all: poisson
 
 # -g outputs debugging information
-# -lpthread links the pthread library
-poisson: poisson.c
-	gcc -g -o poisson poisson.c -lpthread
+# -Wall enables all warnings
+# -pthread configures threading
+CFLAGS = -g -Wall -pthread
 
+poisson: poisson.c
+
+.PHONY: disassembly
+disassembly: poisson.s
+
+poisson.s: poisson
+	objdump -S --disassemble $< > $@
+
+.PHONY: test
 test: poisson
 	./test.sh
 
+.PHONY: clean
 clean:
-	rm -f poisson *.o
+	rm -f poisson *.o *.s

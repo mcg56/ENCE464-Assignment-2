@@ -1,9 +1,9 @@
 all: threads
 
 # -g outputs debugging information
-# -lpthread links the pthread library
+# -pthread adds threading support
 threads: threads.c
-	gcc -g -o threads threads.c -lpthread
+	gcc -g -pthread -o threads threads.c
 
 clean:
 	rm -f threads *.o

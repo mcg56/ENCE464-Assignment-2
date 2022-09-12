@@ -56,13 +56,13 @@ allowing for up to $n$ times speed improvements (for $n$ cores) \footnotemark.
 
 The operating system kernel provides functions to create new threads in your
 program on the fly. In C on Linux, this is provided through the POSIX Threads
-(pthread) library, and in C++ using the standard library (thread). Both of these
-methods take a pointer to a function that is executed as soon as the thread is
-created. See `demos/threads.c' for an example using POSIX threads. It works by
-creating a collection of worker thread which solve the problem, and then waiting
-until they have finished. The waiting method is the `join()' function which
-suspends the main thread and so does not waste extra CPU time, and then returns
-once the thread has finished (joined).
+(pthreads) library, and in C++ using the standard library (\code{thread}). Both
+of these methods take a pointer to a function that is executed as soon as the
+thread is created. See \code{demos/threads.c} for an example using POSIX
+threads. It works by creating a collection of worker thread which solve the
+problem, and then waiting until they have finished. The waiting method is the
+\code{join()} function which suspends the main thread and so does not waste
+extra CPU time, and then returns once the thread has finished (joined).
 
 \footnotetext{Note: threading (or multithreading) is different from Intel
 HyperThreading or AMD Simultaneous Multithreading. These are both CPU hardware
@@ -73,7 +73,7 @@ way.}
 \section{Next steps}
 
 \begin{enumerate}
-    \item Play with `threads.c' to understand how it works.
+    \item Play with \code{threads.c} to understand how it works.
     \item Write a new program from scratch that uses multithreading,
       e.g., print out the numbers 1 through 10, each number in a
       different thread.
@@ -117,6 +117,10 @@ and written to, or add a mutual exclusion barrier.
 \section{Further reading}
 
 \begin{itemize}
+    \item \url{https://man7.org/linux/man-pages/man7/pthreads.7.html}. You can
+    also view this man page in the command line by running \code{man pthreads}.
+    Documentation for specific functions (e.g. \code{pthread\_create}) can be
+    viewed by running \code{man <function-name>}.
     \item \url{http://www.cs.kent.edu/~ruttan/sysprog/lectures/multi-thread/multi-thread.html}
     \item \url{https://www.geeksforgeeks.org/multithreading-c-2/}
     \item \url{https://en.cppreference.com/w/cpp/thread/thread}
