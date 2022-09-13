@@ -37,7 +37,7 @@
 
 // Global flag
 // Set to true when operating in debug mode to enable verbose logging
-static bool debug = false;
+static bool debug = true;
 
 
 /**
@@ -75,6 +75,28 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
     }
 
     // TODO: solve Poisson's equation for the given inputs
+    for (int t_step = 0; t_step < iterations; t_step++)
+    {
+        for (int k = 0; k < n; k++)
+        {
+            for (int j = 0; j < n; j++)
+            {
+                for (int i = 0; i < n; i++)
+                {
+                    *(next + ((k * n * n) + j * n + i)) = 1.0/6.0 * 
+                    (
+                        *(curr + (i + 1) + (j * n) + (k * n * n)) + *(curr + (i - 1) + (j * n) + (k * n * n))
+                        + *(curr + i + ((j + 1) * n) + (k * n * n)) + *(curr + i + ((j - 1) * n) + (k * n * n))
+                        + *(curr + i + (j * n) + ((k + 1) * n * n)) + *(curr + i + (j * n) + ((k - 1) * n * n))
+                        - delta * delta * *(source + i + (j * n) + (k * n * n))
+                    );
+                }           
+            } 
+        } 
+
+        curr = next;
+    }
+
 
     // Free one of the buffers and return the correct answer in the other.
     // The caller is now responsible for free'ing the returned pointer.
@@ -93,8 +115,8 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
 int main (int argc, char **argv)
 {
     // Default settings for solver
-    int iterations = 10;
-    int n = 5;
+    int iterations = 2;
+    int n = 7;
     int threads = 1;
     float delta = 1;
 

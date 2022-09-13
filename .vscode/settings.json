@@ -1,0 +1,15 @@
+{
+    "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools",
+    "files.associations": {
+        "pthread.h": "c",
+        "cstdlib": "c",
+        "stdlib.h": "c"
+    },
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "/home/mark/Documents/UC/4th_year/ENCE464/Computer Architecture/ence464-assignment-2022",
+            "binaryPath": "/home/mark/Documents/UC/4th_year/ENCE464/Computer Architecture/ence464-assignment-2022/poisson",
+            "binaryArgs": []
+        }
+    ]
+}

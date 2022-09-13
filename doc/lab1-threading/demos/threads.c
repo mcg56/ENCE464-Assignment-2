@@ -41,7 +41,7 @@ void* worker (void* pargs)
         }
         printf ("%i\n", i);
         // Delay a random amount up to 1 second
-        usleep (rand () % 1000000);
+        usleep (rand () % 10);
     }
 
     return NULL;
