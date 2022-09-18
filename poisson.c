@@ -63,9 +63,11 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
                n, iterations, threads, delta);
     }
 
+    int n_bloat = n+2;
+
     // Allocate some buffers to calculate the solution in
-    double *curr = (double*)calloc (n * n * n, sizeof (double));
-    double *next = (double*)calloc (n * n * n, sizeof (double));
+    double *curr = (double*)calloc (n_bloat * n_bloat * n_bloat, sizeof (double));
+    double *next = (double*)calloc (n_bloat * n_bloat * n_bloat, sizeof (double));
 
     // Ensure we haven't run out of memory
     if (curr == NULL || next == NULL)
@@ -77,26 +79,58 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
     // TODO: solve Poisson's equation for the given inputs
     for (int t_step = 0; t_step < iterations; t_step++)
     {
-        for (int k = 0; k < n; k++)
+        for (int k = 1; k <= n; k++)
         {
-            for (int j = 0; j < n; j++)
+            for (int j = 1; j <= n; j++)
             {
-                for (int i = 0; i < n; i++)
+                for (int i = 1; i <= n; i++)
                 {
-                    *(next + ((k * n * n) + j * n + i)) = 1.0/6.0 * 
+                    *(next + ((k * n_bloat * n_bloat) + j * n_bloat + i)) = 1.0/6.0 * 
                     (
-                        *(curr + (i + 1) + (j * n) + (k * n * n)) + *(curr + (i - 1) + (j * n) + (k * n * n))
-                        + *(curr + i + ((j + 1) * n) + (k * n * n)) + *(curr + i + ((j - 1) * n) + (k * n * n))
-                        + *(curr + i + (j * n) + ((k + 1) * n * n)) + *(curr + i + (j * n) + ((k - 1) * n * n))
+                        *(curr + (i + 1) + (j * n_bloat) + (k * n_bloat * n_bloat)) + *(curr + (i - 1) + (j * n_bloat) + (k * n_bloat * n_bloat))
+                        + *(curr + i + ((j + 1) * n_bloat) + (k * n_bloat * n_bloat)) + *(curr + i + ((j - 1) * n_bloat) + (k * n_bloat * n_bloat))
+                        + *(curr + i + (j * n_bloat) + ((k + 1) * n_bloat * n_bloat)) + *(curr + i + (j * n_bloat) + ((k - 1) * n_bloat * n_bloat))
                         - delta * delta * *(source + i + (j * n) + (k * n * n))
                     );
-                }           
+                } 
+
+
             } 
         } 
+
+        //Updating ghost points
+        for (int k = 1; k <= n; k++)
+        {
+            for (int j = 1; j <= n; j++)
+            {
+                *(next + ((k * n_bloat * n_bloat) + j * n_bloat)) = *(next + ((k * n_bloat * n_bloat) + j * n_bloat + 2));
+                *(next + ((k * n_bloat * n_bloat) + j * n_bloat + n + 1)) = *(next + ((k * n_bloat * n_bloat) + j * n_bloat + n - 1));
+            }
+        }
+
+        for (int k = 1; k <= n; k++)
+        {
+            for (int i = 1; i <= n; i++)
+            {
+                *(next + ((k * n_bloat * n_bloat) + i)) = *(next + ((k * n_bloat * n_bloat) + 2 * n_bloat + i));
+                *(next + ((k * n_bloat * n_bloat) + (n + 1) * n_bloat + i)) = *(next + ((k * n_bloat * n_bloat) + (n - 1) * n_bloat + i));
+            }
+        }        
+
+        for (int j = 1; j <= n; j++)
+        {
+            for (int i = 1; i <= n; i++)
+            {
+                *(next + (j * n_bloat + i)) = *(next + ((2 * n_bloat * n_bloat) + j * n_bloat + i));
+                *(next + (((n+1) * n_bloat * n_bloat) + j * n_bloat + i)) = *(next + (((n-1) * n_bloat * n_bloat) + j * n_bloat + i));
+            }
+        } 
+
 
         curr = next;
     }
 
+    //TODO: Extract cube from bloated cube
 
     // Free one of the buffers and return the correct answer in the other.
     // The caller is now responsible for free'ing the returned pointer.
@@ -115,7 +149,7 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
 int main (int argc, char **argv)
 {
     // Default settings for solver
-    int iterations = 2;
+    int iterations = 100;
     int n = 7;
     int threads = 1;
     float delta = 1;
@@ -183,6 +217,7 @@ int main (int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    //Set source to single point charge in centre of volume
     source[(n * n * n) / 2] = 1;
 
     // Calculate the resulting field with Neumann conditions
