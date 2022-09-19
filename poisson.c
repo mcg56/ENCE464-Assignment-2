@@ -90,7 +90,7 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
                         *(curr + (i + 1) + (j * n_bloat) + (k * n_bloat * n_bloat)) + *(curr + (i - 1) + (j * n_bloat) + (k * n_bloat * n_bloat))
                         + *(curr + i + ((j + 1) * n_bloat) + (k * n_bloat * n_bloat)) + *(curr + i + ((j - 1) * n_bloat) + (k * n_bloat * n_bloat))
                         + *(curr + i + (j * n_bloat) + ((k + 1) * n_bloat * n_bloat)) + *(curr + i + (j * n_bloat) + ((k - 1) * n_bloat * n_bloat))
-                        - delta * delta * *(source + i + (j * n) + (k * n * n))
+                        - delta * delta * *(source + (i-1) + ((j-1) * n) + ((k-1) * n * n))
                     );
                 } 
 
