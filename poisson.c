@@ -37,7 +37,7 @@
 
 // Global flag
 // Set to true when operating in debug mode to enable verbose logging
-static bool debug = true;
+static bool debug = false;
 
 
 /**
@@ -85,7 +85,7 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
             {
                 for (int i = 1; i <= n; i++)
                 {
-                    *(next + ((k * n_bloat * n_bloat) + j * n_bloat + i)) = 1.0/6.0 * 
+                    *(next + ((k * n_bloat * n_bloat) + j * n_bloat + i)) = (1.0/6.0) * 
                     (
                         *(curr + (i + 1) + (j * n_bloat) + (k * n_bloat * n_bloat)) + *(curr + (i - 1) + (j * n_bloat) + (k * n_bloat * n_bloat))
                         + *(curr + i + ((j + 1) * n_bloat) + (k * n_bloat * n_bloat)) + *(curr + i + ((j - 1) * n_bloat) + (k * n_bloat * n_bloat))
@@ -126,8 +126,18 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
             }
         } 
 
+        // curr = next;
+        for (int k = 0; k < n_bloat; k++)
+        {
+            for (int j = 0; j < n_bloat; j++)
+            {
+                for (int i = 0; i < n_bloat; i++)
+                {
+                    *(curr + (k * n_bloat * n_bloat) + (j * n_bloat) + i) =  *(next + (k * n_bloat * n_bloat) + (j * n_bloat) + i);
+                }
+            }
+        }
 
-        curr = next;
     }
 
     // Free one of the buffers and return the correct answer in the other.
@@ -143,7 +153,7 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
         {
             for (int i = 1; i <= n; i++)
             {
-                *(inner + ((k-1) * n * n) + ((j-1) * n) + (i-1)) =  *(curr + (k * n * n) + (j * n) + i);
+                *(inner + ((k-1) * n * n) + ((j-1) * n) + (i-1)) =  *(curr + (k * n_bloat * n_bloat) + (j * n_bloat) + i);
             }
         }
     }
@@ -161,10 +171,11 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
 int main (int argc, char **argv)
 {
     // Default settings for solver
-    int iterations = 100;
+    float delta = 1;
+    int iterations = 300;
     int n = 7;
     int threads = 1;
-    float delta = 1;
+
 
     // parse the command line arguments
     for (int i = 1; i < argc; ++i)
@@ -230,7 +241,7 @@ int main (int argc, char **argv)
     }
 
     //Set source to single point charge in centre of volume
-    source[(n * n * n) / 2] = 1;
+    source[(n * n * n) / 2] = 1/delta;
 
     // Calculate the resulting field with Neumann conditions
     double *result = poisson_neumann (n, source, iterations, threads, delta);
