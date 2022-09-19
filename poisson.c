@@ -130,18 +130,30 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
         curr = next;
     }
 
-    //TODO: Extract cube from bloated cube
-
     // Free one of the buffers and return the correct answer in the other.
     // The caller is now responsible for free'ing the returned pointer.
-    free (next);
+    // free (next);
+
+    //Extract cube from bloated cube
+    double *inner = (double*)calloc (n * n * n, sizeof (double));
+
+    for (int k = 1; k <= n; k++)
+    {
+        for (int j = 1; j <= n; j++)
+        {
+            for (int i = 1; i <= n; i++)
+            {
+                *(inner + ((k-1) * n * n) + ((j-1) * n) + (i-1)) =  *(curr + (k * n * n) + (j * n) + i);
+            }
+        }
+    }
 
     if (debug)
     {
         printf ("Finished solving.\n");
     }
 
-    return curr;
+    return inner;
 }
 
 
