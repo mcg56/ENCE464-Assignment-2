@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-
+#include <pthread.h>
 
 /**
  * poisson.c
@@ -35,10 +35,25 @@
  * multithreading (see also threads.c which is reference by the lab notes).
  */
 
+#define NUM_THREADS     4
+
+typedef struct
+{
+    double *curr;          // Start index of the worker thread
+    double *next;          // End index of the worker thread
+    int n;
+    int n_bloat;
+    double *source;
+    double delta;
+    int k_start;
+    int k_end;
+
+} WorkerArgs;
 
 // Global flag
 // Set to true when operating in debug mode to enable verbose logging
 static bool debug = false;
+
 
 void update_cell(int n, int n_bloat, double *curr, double *next, double *source, double delta, int cell_index, int inner_index)
 {
@@ -51,20 +66,54 @@ void update_cell(int n, int n_bloat, double *curr, double *next, double *source,
     );
 }
 
-void update_inner(int n, int n_bloat, double *curr, double *next, double*source, double delta)
+void* worker (void* pargs)
 {
-    for (int k = 1; k <= n; k++)
-    {
-        for (int j = 1; j <= n; j++)
+    WorkerArgs* args = (WorkerArgs*)pargs;
+
+    for (int k = args->k_start; k < args->k_end; k++) {
+        for (int j = 1; j <= args->n; j++)
         {
-            for (int i = 1; i <= n; i++)
+            for (int i = 1; i <= args->n; i++)
             {
-                int cell_index = i + (j * n_bloat) + (k * n_bloat * n_bloat);
-                int inner_index = (i-1) + ((j-1) * n) + ((k-1) * n * n);
-                update_cell(n, n_bloat, curr, next, source, delta, cell_index, inner_index);
+                int cell_index = i + (j * args->n_bloat) + (k * args->n_bloat * args->n_bloat);
+                int inner_index = (i-1) + ((j-1) * args->n) + ((k-1) * args->n * args->n);
+                update_cell(args->n, args->n_bloat, args->curr, args->next, args->source, args->delta, cell_index, inner_index);
             } 
         } 
+    }
+    return NULL;
+}
+
+
+void update_inner(int n, int n_bloat, double *curr, double *next, double*source, double delta)
+{
+    pthread_t threads[NUM_THREADS];
+    WorkerArgs args[NUM_THREADS];
+
+    for (int i = 0; i < NUM_THREADS; i++)
+    {   
+        // Fill in the arguments to the worker
+        args[i].curr = curr;
+        args[i].next = next;
+        args[i].n = n;
+        args[i].n_bloat = n_bloat;
+        args[i].k_start = (n * i) / NUM_THREADS + 1;
+        args[i].k_end = (n * (i + 1)) / NUM_THREADS + 1;
+        args[i].source = source;
+        args[i].delta = delta;
+
+        // Create the worker thread
+        if (pthread_create (&threads[i], NULL, &worker, &args[i]) != 0)
+        {
+            fprintf (stderr, "Error creating worker thread!\n");
+        }
     } 
+
+    // Wait for all the threads to finish using join ()
+    for (int i = 0; i < NUM_THREADS; i++)
+    {
+        pthread_join (threads[i], NULL);
+    }
 }
 
 void update_boundary(int n, int n_bloat, double *next)
@@ -271,17 +320,17 @@ int main (int argc, char **argv)
 
     time_t end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-    // printf ("Time taken: %0.5f \n", time_spent);
+    printf ("Time taken: %0.5f \n", time_spent);
 
-    Print out the middle slice of the cube for validation
-    for (int x = 0; x < n; ++x)
-    {
-        for (int y = 0; y < n; ++y)
-        {
-            printf ("%0.5f ", result[((n / 2) * n + y) * n + x]);
-        }
-        printf ("\n");
-    }
+    // // Print out the middle slice of the cube for validation
+    // for (int x = 0; x < n; ++x)
+    // {
+    //     for (int y = 0; y < n; ++y)
+    //     {
+    //         printf ("%0.5f ", result[((n / 2) * n + y) * n + x]);
+    //     }
+    //     printf ("\n");
+    // }
 
     free (source);
     free (result);
