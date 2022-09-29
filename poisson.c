@@ -241,8 +241,8 @@ int main (int argc, char **argv)
 {
     // Default settings for solver
     float delta = 1;
-    int iterations = 300;
-    int n = 7;
+    int iterations = 100;
+    int n = 101;
     int threads = 1;
 
 
