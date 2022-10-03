@@ -2,9 +2,12 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
+#include <sys/time.h>
+
 
 /**
  * poisson.c
@@ -50,6 +53,13 @@ typedef struct
 
 } WorkerArgs;
 
+double my_clock(void) {
+  struct timeval t;
+  gettimeofday(&t, NULL);
+  return (1.0e-6*t.tv_usec + t.tv_sec);
+}
+
+
 // Global flag
 // Set to true when operating in debug mode to enable verbose logging
 static bool debug = false;
@@ -57,11 +67,12 @@ static bool debug = false;
 
 void update_cell(int n, int n_bloat, double *curr, double *next, double *source, double delta, int cell_index, int inner_index)
 {
+    int n_2 = n_bloat*n_bloat;
     *(next + cell_index) = (1.0/6.0) * 
     (
         *(curr + cell_index + 1) + *(curr + cell_index - 1)
         + *(curr + cell_index + n_bloat) + *(curr + cell_index - n_bloat)
-        + *(curr + cell_index + n_bloat*n_bloat) + *(curr + cell_index - n_bloat*n_bloat)
+        + *(curr + cell_index + n_2) + *(curr + cell_index - n_2)
         - delta * delta * *(source + inner_index)
     );
 }
@@ -119,12 +130,13 @@ void update_inner(int n, int n_bloat, double *curr, double *next, double*source,
 void update_boundary(int n, int n_bloat, double *next)
 {
     //Updating ghost points
+    int n_2 = n_bloat*n_bloat;
         for (int k = 1; k <= n; k++)
         {
             for (int j = 1; j <= n; j++)
             {
-                *(next + ((k * n_bloat * n_bloat) + j * n_bloat)) = *(next + ((k * n_bloat * n_bloat) + j * n_bloat + 2));
-                *(next + ((k * n_bloat * n_bloat) + j * n_bloat + n + 1)) = *(next + ((k * n_bloat * n_bloat) + j * n_bloat + n - 1));
+                *(next + ((k * n_2) + j * n_bloat)) = *(next + ((k * n_2) + j * n_bloat + 2));
+                *(next + ((k * n_2) + j * n_bloat + n + 1)) = *(next + ((k * n_2) + j * n_bloat + n - 1));
             }
         }
 
@@ -132,8 +144,8 @@ void update_boundary(int n, int n_bloat, double *next)
         {
             for (int i = 1; i <= n; i++)
             {
-                *(next + ((k * n_bloat * n_bloat) + i)) = *(next + ((k * n_bloat * n_bloat) + 2 * n_bloat + i));
-                *(next + ((k * n_bloat * n_bloat) + (n + 1) * n_bloat + i)) = *(next + ((k * n_bloat * n_bloat) + (n - 1) * n_bloat + i));
+                *(next + ((k * n_2) + i)) = *(next + ((k * n_2) + 2 * n_bloat + i));
+                *(next + ((k * n_2) + (n + 1) * n_bloat + i)) = *(next + ((k * n_2) + (n - 1) * n_bloat + i));
             }
         }        
 
@@ -141,26 +153,13 @@ void update_boundary(int n, int n_bloat, double *next)
         {
             for (int i = 1; i <= n; i++)
             {
-                *(next + (j * n_bloat + i)) = *(next + ((2 * n_bloat * n_bloat) + j * n_bloat + i));
-                *(next + (((n+1) * n_bloat * n_bloat) + j * n_bloat + i)) = *(next + (((n-1) * n_bloat * n_bloat) + j * n_bloat + i));
+                *(next + (j * n_bloat + i)) = *(next + ((2 * n_2) + j * n_bloat + i));
+                *(next + (((n+1) * n_2) + j * n_bloat + i)) = *(next + (((n-1) * n_2) + j * n_bloat + i));
             }
         } 
 }
 
-void update_curr(int n_bloat, double *curr, double *next)
-{
-    // curr = next;
-    for (int k = 0; k < n_bloat; k++)
-    {
-        for (int j = 0; j < n_bloat; j++)
-        {
-            for (int i = 0; i < n_bloat; i++)
-            {
-                *(curr + (k * n_bloat * n_bloat) + (j * n_bloat) + i) =  *(next + (k * n_bloat * n_bloat) + (j * n_bloat) + i);
-            }
-        }
-    }
-}
+
 
 /**
  * @brief Solve Poissons equation for a given cube with Neumann boundary
@@ -205,7 +204,13 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
 
         update_boundary(n, n_bloat, next);
 
-        update_curr(n_bloat, curr, next);
+        // update_curr(n_bloat, curr, next);
+
+        double* temp;
+        temp = curr;
+        curr = next;
+        next = temp;
+        // printf ("%p \n", temp);
 
     }
 
@@ -313,16 +318,16 @@ int main (int argc, char **argv)
     source[(n * n * n) / 2] = 1/delta;
 
     //Start timer
-    time_t begin = clock();
+    double begin = my_clock();
 
     // Calculate the resulting field with Neumann conditions
     double *result = poisson_neumann (n, source, iterations, threads, delta);
 
-    time_t end = clock();
-    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    double end = my_clock();
+    double time_spent = (double)(end - begin);
     printf ("Time taken: %0.5f \n", time_spent);
 
-    // // Print out the middle slice of the cube for validation
+    // Print out the middle slice of the cube for validation
     // for (int x = 0; x < n; ++x)
     // {
     //     for (int y = 0; y < n; ++y)
