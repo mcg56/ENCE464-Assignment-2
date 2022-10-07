@@ -3,7 +3,8 @@
     "files.associations": {
         "pthread.h": "c",
         "cstdlib": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "semaphore.h": "c"
     },
     "makefile.launchConfigurations": [
         {
