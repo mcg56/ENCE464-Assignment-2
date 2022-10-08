@@ -1,15 +1,12 @@
+// Poisson MK2 added threading
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
-#include <sys/time.h>
-#include <semaphore.h>
-
-
 
 /**
  * poisson.c
@@ -40,32 +37,20 @@
  * multithreading (see also threads.c which is reference by the lab notes).
  */
 
-sem_t thread_sync;
-
-int threads_completed = 0;
-pthread_mutex_t lock;
+#define NUM_THREADS     4
 
 typedef struct
 {
-    int iters;
-    double *curr;         
-    double *next;          
+    double *curr;          // Start index of the worker thread
+    double *next;          // End index of the worker thread
     int n;
     int n_bloat;
     double *source;
     double delta;
     int k_start;
     int k_end;
-    int num_threads;
 
 } WorkerArgs;
-
-double my_clock(void) {
-  struct timeval t;
-  gettimeofday(&t, NULL);
-  return (1.0e-6*t.tv_usec + t.tv_sec);
-}
-
 
 // Global flag
 // Set to true when operating in debug mode to enable verbose logging
@@ -74,26 +59,74 @@ static bool debug = false;
 
 void update_cell(int n, int n_bloat, double *curr, double *next, double *source, double delta, int cell_index, int inner_index)
 {
-    int n_2 = n_bloat*n_bloat;
     *(next + cell_index) = (1.0/6.0) * 
     (
         *(curr + cell_index + 1) + *(curr + cell_index - 1)
         + *(curr + cell_index + n_bloat) + *(curr + cell_index - n_bloat)
-        + *(curr + cell_index + n_2) + *(curr + cell_index - n_2)
+        + *(curr + cell_index + n_bloat*n_bloat) + *(curr + cell_index - n_bloat*n_bloat)
         - delta * delta * *(source + inner_index)
     );
+}
+
+void* worker (void* pargs)
+{
+    WorkerArgs* args = (WorkerArgs*)pargs;
+
+    for (int k = args->k_start; k < args->k_end; k++) {
+        for (int j = 1; j <= args->n; j++)
+        {
+            for (int i = 1; i <= args->n; i++)
+            {
+                int cell_index = i + (j * args->n_bloat) + (k * args->n_bloat * args->n_bloat);
+                int inner_index = (i-1) + ((j-1) * args->n) + ((k-1) * args->n * args->n);
+                update_cell(args->n, args->n_bloat, args->curr, args->next, args->source, args->delta, cell_index, inner_index);
+            } 
+        } 
+    }
+    return NULL;
+}
+
+
+void update_inner(int n, int n_bloat, double *curr, double *next, double*source, double delta)
+{
+    pthread_t threads[NUM_THREADS];
+    WorkerArgs args[NUM_THREADS];
+
+    for (int i = 0; i < NUM_THREADS; i++)
+    {   
+        // Fill in the arguments to the worker
+        args[i].curr = curr;
+        args[i].next = next;
+        args[i].n = n;
+        args[i].n_bloat = n_bloat;
+        args[i].k_start = (n * i) / NUM_THREADS + 1;
+        args[i].k_end = (n * (i + 1)) / NUM_THREADS + 1;
+        args[i].source = source;
+        args[i].delta = delta;
+
+        // Create the worker thread
+        if (pthread_create (&threads[i], NULL, &worker, &args[i]) != 0)
+        {
+            fprintf (stderr, "Error creating worker thread!\n");
+        }
+    } 
+
+    // Wait for all the threads to finish using join ()
+    for (int i = 0; i < NUM_THREADS; i++)
+    {
+        pthread_join (threads[i], NULL);
+    }
 }
 
 void update_boundary(int n, int n_bloat, double *next)
 {
     //Updating ghost points
-    int n_2 = n_bloat*n_bloat;
         for (int k = 1; k <= n; k++)
         {
             for (int j = 1; j <= n; j++)
             {
-                *(next + ((k * n_2) + j * n_bloat)) = *(next + ((k * n_2) + j * n_bloat + 2));
-                *(next + ((k * n_2) + j * n_bloat + n + 1)) = *(next + ((k * n_2) + j * n_bloat + n - 1));
+                *(next + ((k * n_bloat * n_bloat) + j * n_bloat)) = *(next + ((k * n_bloat * n_bloat) + j * n_bloat + 2));
+                *(next + ((k * n_bloat * n_bloat) + j * n_bloat + n + 1)) = *(next + ((k * n_bloat * n_bloat) + j * n_bloat + n - 1));
             }
         }
 
@@ -101,8 +134,8 @@ void update_boundary(int n, int n_bloat, double *next)
         {
             for (int i = 1; i <= n; i++)
             {
-                *(next + ((k * n_2) + i)) = *(next + ((k * n_2) + 2 * n_bloat + i));
-                *(next + ((k * n_2) + (n + 1) * n_bloat + i)) = *(next + ((k * n_2) + (n - 1) * n_bloat + i));
+                *(next + ((k * n_bloat * n_bloat) + i)) = *(next + ((k * n_bloat * n_bloat) + 2 * n_bloat + i));
+                *(next + ((k * n_bloat * n_bloat) + (n + 1) * n_bloat + i)) = *(next + ((k * n_bloat * n_bloat) + (n - 1) * n_bloat + i));
             }
         }        
 
@@ -110,58 +143,26 @@ void update_boundary(int n, int n_bloat, double *next)
         {
             for (int i = 1; i <= n; i++)
             {
-                *(next + (j * n_bloat + i)) = *(next + ((2 * n_2) + j * n_bloat + i));
-                *(next + (((n+1) * n_2) + j * n_bloat + i)) = *(next + (((n-1) * n_2) + j * n_bloat + i));
+                *(next + (j * n_bloat + i)) = *(next + ((2 * n_bloat * n_bloat) + j * n_bloat + i));
+                *(next + (((n+1) * n_bloat * n_bloat) + j * n_bloat + i)) = *(next + (((n-1) * n_bloat * n_bloat) + j * n_bloat + i));
             }
         } 
 }
 
-void* worker (void* pargs)
+void update_curr(int n_bloat, double *curr, double *next)
 {
-    WorkerArgs* args = (WorkerArgs*)pargs;
-
-    for (int t_step = 0; t_step < args->iters; t_step++)
+    // curr = next;
+    for (int k = 0; k < n_bloat; k++)
     {
-        for (int k = args->k_start; k < args->k_end; k++) {
-            for (int j = 1; j <= args->n; j++)
+        for (int j = 0; j < n_bloat; j++)
+        {
+            for (int i = 0; i < n_bloat; i++)
             {
-                for (int i = 1; i <= args->n; i++)
-                {
-                    int cell_index = i + (j * args->n_bloat) + (k * args->n_bloat * args->n_bloat);
-                    int inner_index = (i-1) + ((j-1) * args->n) + ((k-1) * args->n * args->n);
-                    update_cell(args->n, args->n_bloat, args->curr, args->next, args->source, args->delta, cell_index, inner_index);
-                } 
-            } 
+                *(curr + (k * n_bloat * n_bloat) + (j * n_bloat) + i) =  *(next + (k * n_bloat * n_bloat) + (j * n_bloat) + i);
+            }
         }
-    
-        pthread_mutex_lock(&lock);
-        threads_completed++;
-        pthread_mutex_unlock(&lock);
-
-        if (threads_completed >= args->num_threads) {
-            update_boundary(args->n, args->n_bloat, args->next);
-            sem_post(&thread_sync);
-            threads_completed = 0;
-        }
-        // printf("%i \n", threads_completed); try to use up additional post
-        
-        sem_wait(&thread_sync);
-        sem_post(&thread_sync);
-
-        if (threads_completed == 0) {
-            sem_wait(&thread_sync);
-        }
-
-        double* temp;
-        temp = args->curr;
-        args->curr = args->next;
-        args->next = temp;
     }
-
-
-    return NULL;
 }
-
 
 /**
  * @brief Solve Poissons equation for a given cube with Neumann boundary
@@ -199,46 +200,16 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
         exit (EXIT_FAILURE);
     }
 
-    sem_init(&thread_sync,0,0);
-
-    pthread_t worker_threads[threads];
-    WorkerArgs args[threads];
-
-    if (pthread_mutex_init(&lock, NULL) != 0)
+    // TODO: solve Poisson's equation for the given inputs
+    for (int t_step = 0; t_step < iterations; t_step++)
     {
-        printf("\n mutex init failed\n");
+        update_inner(n, n_bloat, curr, next, source, delta);
+
+        update_boundary(n, n_bloat, next);
+
+        update_curr(n_bloat, curr, next);
+
     }
-
-    for (int i = 0; i < threads; i++)
-    {   
-
-        // Fill in the arguments to the worker
-        args[i].iters = iterations;
-        args[i].curr = curr;
-        args[i].next = next;
-        args[i].n = n;
-        args[i].n_bloat = n_bloat;
-        args[i].k_start = (n * i) / threads + 1;
-        args[i].k_end = (n * (i + 1)) / threads + 1;
-        args[i].source = source;
-        args[i].delta = delta;
-        args[i].num_threads = threads;
-
-        // Create the worker thread
-        if (pthread_create (&worker_threads[i], NULL, &worker, &args[i]) != 0)
-        {
-            fprintf (stderr, "Error creating worker thread!\n");
-        }
-        usleep(1);
-    } 
-
-    // Wait for all the threads to finish using join ()
-    for (int i = 0; i < threads; i++)
-    {
-        pthread_join (worker_threads[i], NULL);
-    }
-
-    sem_destroy(&thread_sync);
 
     // Free one of the buffers and return the correct answer in the other.
     // The caller is now responsible for free'ing the returned pointer.
@@ -272,9 +243,9 @@ int main (int argc, char **argv)
 {
     // Default settings for solver
     float delta = 1;
-    int iterations = 100;
+    int iterations = 300;
     int n = 7;
-    int threads = 4;
+    int threads = 1;
 
 
     // parse the command line arguments
@@ -344,24 +315,24 @@ int main (int argc, char **argv)
     source[(n * n * n) / 2] = 1/delta;
 
     //Start timer
-    double begin = my_clock();
+    time_t begin = clock();
 
     // Calculate the resulting field with Neumann conditions
     double *result = poisson_neumann (n, source, iterations, threads, delta);
 
-    double end = my_clock();
-    double time_spent = (double)(end - begin);
-    // printf ("Time taken: %0.5f \n", time_spent);
+    time_t end = clock();
+    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    printf ("Time taken: %0.5f \n", time_spent);
 
-    // Print out the middle slice of the cube for validation
-    for (int x = 0; x < n; ++x)
-    {
-        for (int y = 0; y < n; ++y)
-        {
-            printf ("%0.5f ", result[((n / 2) * n + y) * n + x]);
-        }
-        printf ("\n");
-    }
+    // // Print out the middle slice of the cube for validation
+    // for (int x = 0; x < n; ++x)
+    // {
+    //     for (int y = 0; y < n; ++y)
+    //     {
+    //         printf ("%0.5f ", result[((n / 2) * n + y) * n + x]);
+    //     }
+    //     printf ("\n");
+    // }
 
     free (source);
     free (result);
