@@ -339,7 +339,7 @@ int main (int argc, char **argv)
 		printf("%lf", end_time-start_time);
 	}
 	
-	printf("%lf", end_time-start_time);
+	printf("%lf\n", end_time-start_time);
 
     // Print out the middle slice of the cube for validation
     for (int x = 0; x < n; ++x)
