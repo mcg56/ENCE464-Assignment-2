@@ -40,10 +40,11 @@
  * multithreading (see also threads.c which is reference by the lab notes).
  */
 
-sem_t thread_sync;
+pthread_barrier_t barrier;
 
 int threads_completed = 0;
 pthread_mutex_t lock;
+
 
 typedef struct
 {
@@ -57,6 +58,7 @@ typedef struct
     int k_start;
     int k_end;
     int num_threads;
+    bool last_thread;
 
 } WorkerArgs;
 
@@ -140,12 +142,10 @@ void* worker (void* pargs)
 
         if (threads_completed >= args->num_threads) {
             update_boundary(args->n, args->n_bloat, args->next);
-            sem_post(&thread_sync);
             threads_completed = 0;
         }
-        
-        sem_wait(&thread_sync);
-        sem_post(&thread_sync);
+
+        pthread_barrier_wait (&barrier);
 
         double* temp;
         temp = args->curr;
@@ -194,7 +194,7 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
         exit (EXIT_FAILURE);
     }
 
-    sem_init(&thread_sync,0,0);
+    pthread_barrier_init (&barrier, NULL, threads);
 
     pthread_t worker_threads[threads];
     WorkerArgs args[threads];
@@ -218,13 +218,13 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
         args[i].source = source;
         args[i].delta = delta;
         args[i].num_threads = threads;
+        args[i].last_thread = false;
 
         // Create the worker thread
         if (pthread_create (&worker_threads[i], NULL, &worker, &args[i]) != 0)
         {
             fprintf (stderr, "Error creating worker thread!\n");
         }
-        usleep(1);
     } 
 
     // Wait for all the threads to finish using join ()
@@ -232,8 +232,6 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
     {
         pthread_join (worker_threads[i], NULL);
     }
-
-    sem_destroy(&thread_sync);
 
     // Free one of the buffers and return the correct answer in the other.
     // The caller is now responsible for free'ing the returned pointer.
@@ -268,7 +266,7 @@ int main (int argc, char **argv)
     // Default settings for solver
     float delta = 1;
     int iterations = 100;
-    int n = 7;
+    int n = 101;
     int threads = 4;
 
 
@@ -346,17 +344,17 @@ int main (int argc, char **argv)
 
     double end = my_clock();
     double time_spent = (double)(end - begin);
-    // printf ("Time taken: %0.5f \n", time_spent);
+    printf ("Time taken: %0.5f \n", time_spent);
 
     // Print out the middle slice of the cube for validation
-    for (int x = 0; x < n; ++x)
-    {
-        for (int y = 0; y < n; ++y)
-        {
-            printf ("%0.5f ", result[((n / 2) * n + y) * n + x]);
-        }
-        printf ("\n");
-    }
+    // for (int x = 0; x < n; ++x)
+    // {
+    //     for (int y = 0; y < n; ++y)
+    //     {
+    //         printf ("%0.5f ", result[((n / 2) * n + y) * n + x]);
+    //     }
+    //     printf ("\n");
+    // }
 
     free (source);
     free (result);
