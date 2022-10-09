@@ -54,7 +54,7 @@ typedef struct
     int n;
     int n_bloat;
     double *source;
-    double delta;
+    double delta2;
     int k_start;
     int k_end;
     int num_threads;
@@ -74,16 +74,16 @@ double my_clock(void) {
 static bool debug = false;
 
 
-void update_cell(int n, int n_bloat, double *curr, double *next, double *source, double delta, int cell_index, int inner_index)
+void update_cell(int n, int n_bloat, double *curr, double *next, double *source, double delta2, int cell_index, int inner_index)
 {
     int n_2 = n_bloat*n_bloat;
-    *(next + cell_index) = (1.0/6.0) * 
-    (
-        *(curr + cell_index + 1) + *(curr + cell_index - 1)
-        + *(curr + cell_index + n_bloat) + *(curr + cell_index - n_bloat)
-        + *(curr + cell_index + n_2) + *(curr + cell_index - n_2)
-        - delta * delta * *(source + inner_index)
-    );
+    *(next + cell_index) = (1.0/6.0) * (  *(curr + cell_index + 1) 
+                                        + *(curr + cell_index - 1)
+                                        + *(curr + cell_index + n_bloat) 
+                                        + *(curr + cell_index - n_bloat)
+                                        + *(curr + cell_index + n_2) 
+                                        + *(curr + cell_index - n_2)
+                                        - delta2 * *(source + inner_index));
 }
 
 void update_boundary(int n, int n_bloat, double *next)
@@ -125,13 +125,12 @@ void* worker (void* pargs)
     for (int t_step = 0; t_step < args->iters; t_step++)
     {
         for (int k = args->k_start; k < args->k_end; k++) {
-            for (int j = 1; j <= args->n; j++)
-            {
+            for (int j = 1; j <= args->n; j++) {
                 for (int i = 1; i <= args->n; i++)
                 {
                     int cell_index = i + (j * args->n_bloat) + (k * args->n_bloat * args->n_bloat);
                     int inner_index = (i-1) + ((j-1) * args->n) + ((k-1) * args->n * args->n);
-                    update_cell(args->n, args->n_bloat, args->curr, args->next, args->source, args->delta, cell_index, inner_index);
+                    update_cell(args->n, args->n_bloat, args->curr, args->next, args->source, args->delta2, cell_index, inner_index);
                 } 
             } 
         }
@@ -171,38 +170,19 @@ void* worker (void* pargs)
  */
 double* poisson_neumann (int n, double *source, int iterations, int threads, float delta)
 {
-    if (debug)
-    {
-        printf ("Starting solver with:\n"
-               "n = %i\n"
-               "iterations = %i\n"
-               "threads = %i\n"
-               "delta = %f\n",
-               n, iterations, threads, delta);
-    }
-
     int n_bloat = n+2;
+    int delta2 = delta * delta;
 
     // Allocate some buffers to calculate the solution in
     double *curr = (double*)calloc (n_bloat * n_bloat * n_bloat, sizeof (double));
     double *next = (double*)calloc (n_bloat * n_bloat * n_bloat, sizeof (double));
-
-    // Ensure we haven't run out of memory
-    if (curr == NULL || next == NULL)
-    {
-        fprintf (stderr, "Error: ran out of memory when trying to allocate %i sized cube\n", n);
-        exit (EXIT_FAILURE);
-    }
 
     pthread_barrier_init (&barrier, NULL, threads);
 
     pthread_t worker_threads[threads];
     WorkerArgs args[threads];
 
-    if (pthread_mutex_init(&lock, NULL) != 0)
-    {
-        printf("\n mutex init failed\n");
-    }
+    pthread_mutex_init(&lock, NULL);
 
     for (int i = 0; i < threads; i++)
     {   
@@ -216,15 +196,12 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
         args[i].k_start = (n * i) / threads + 1;
         args[i].k_end = (n * (i + 1)) / threads + 1;
         args[i].source = source;
-        args[i].delta = delta;
+        args[i].delta2 = delta2;
         args[i].num_threads = threads;
         args[i].last_thread = false;
 
         // Create the worker thread
-        if (pthread_create (&worker_threads[i], NULL, &worker, &args[i]) != 0)
-        {
-            fprintf (stderr, "Error creating worker thread!\n");
-        }
+        pthread_create (&worker_threads[i], NULL, &worker, &args[i]);
     } 
 
     // Wait for all the threads to finish using join ()
@@ -232,10 +209,6 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
     {
         pthread_join (worker_threads[i], NULL);
     }
-
-    // Free one of the buffers and return the correct answer in the other.
-    // The caller is now responsible for free'ing the returned pointer.
-    // free (next);
 
     //Extract cube from bloated cube
     double *inner = (double*)calloc (n * n * n, sizeof (double));
@@ -251,11 +224,6 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
         }
     }
 
-    if (debug)
-    {
-        printf ("Finished solving.\n");
-    }
-
     return inner;
 }
 
@@ -267,7 +235,7 @@ int main (int argc, char **argv)
     float delta = 1;
     int iterations = 100;
     int n = 101;
-    int threads = 4;
+    int threads = 3;
 
 
     // parse the command line arguments
@@ -318,20 +286,8 @@ int main (int argc, char **argv)
         }
     }
 
-    // Ensure we have an odd sized cube
-    if (n % 2 == 0)
-    {
-        fprintf (stderr, "Error: n should be an odd number!\n");
-        return EXIT_FAILURE;
-    }
-
     // Create a source term with a single point in the centre
     double *source = (double*)calloc (n * n * n, sizeof (double));
-    if (source == NULL)
-    {
-        fprintf (stderr, "Error: failed to allocated source term (n=%i)\n", n);
-        return EXIT_FAILURE;
-    }
 
     //Set source to single point charge in centre of volume
     source[(n * n * n) / 2] = 1/delta;
