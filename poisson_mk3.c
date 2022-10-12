@@ -326,17 +326,17 @@ int main (int argc, char **argv)
 
     double end = my_clock();
     double time_spent = (double)(end - begin);
-    printf ("Time taken: %0.5f \n", time_spent);
+    // printf ("Time taken: %0.5f \n", time_spent);
 
     // Print out the middle slice of the cube for validation
-    // for (int x = 0; x < n; ++x)
-    // {
-    //     for (int y = 0; y < n; ++y)
-    //     {
-    //         printf ("%0.5f ", result[((n / 2) * n + y) * n + x]);
-    //     }
-    //     printf ("\n");
-    // }
+    for (int x = 0; x < n; ++x)
+    {
+        for (int y = 0; y < n; ++y)
+        {
+            printf ("%0.5f ", result[((n / 2) * n + y) * n + x]);
+        }
+        printf ("\n");
+    }
 
     free (source);
     free (result);

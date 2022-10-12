@@ -23,4 +23,11 @@ else
     status=1
 fi
 
+if ./poisson -n 301 -i 900  | cmp reference/301.txt; then
+    echo "n=301 i=900 correct"
+else
+    echo "n=301 i=900 failed!"
+    status=1
+fi
+
 exit $status
