@@ -124,8 +124,8 @@ void* worker (void* pargs)
 
     for (int t_step = 0; t_step < args->iters; t_step++)
     {
-        for (int k = args->k_start; k < args->k_end; k++) {
-            for (int j = 1; j <= args->n; j++) {
+        for (int k = 1; k <= args->n; k++) {
+            for (int j = args->k_start; j < args->k_end; j++) {
                 for (int i = 1; i <= args->n; i++)
                 {
                     int cell_index = i + (j * args->n_bloat) + (k * args->n_bloat * args->n_bloat);
