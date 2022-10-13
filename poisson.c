@@ -9,41 +9,21 @@
 #include <sys/time.h>
 #include <semaphore.h>
 
-
-
 /**
  * poisson.c
  * Implementation of a Poisson solver with Neumann boundary conditions.
  *
- * This template handles the basic program launch, argument parsing, and memory
- * allocation required to implement the solver *at its most basic level*. You
- * will likely need to allocate more memory, add threading support, account for
- * cache locality, etc...
- *
  * BUILDING:
- * gcc -o poisson poisson.c -lpthread
+ * gcc -O3 -pg -g -o poisson poisson.c -lpthread
  *
- * [note: linking pthread isn't strictly needed until you add your
- *        multithreading code]
- *
- * TODO:
- * 1 - Read through this example, understand what it does and what it gives you
- *     to work with.
- * 2 - Implement the basic algorithm and get a correct output.
- * 3 - Add a timer to track how long your execution takes.
- * 4 - Profile your solution and identify weaknesses.
- * 5 - Improve it!
- * 6 - Remember that this is now *your* code and *you* should modify it however
- *     needed to solve the assignment.
- *
- * See the lab notes for a guide on profiling and an introduction to
- * multithreading (see also threads.c which is reference by the lab notes).
- */
+ * RUNNING:
+ * ./poisson -n [dimension of cube] -i [number of iterations]
+ **/
+
 
 pthread_barrier_t barrier;
-
-int threads_completed = 0;
 pthread_mutex_t lock;
+int threads_completed = 0;
 
 
 typedef struct
@@ -62,19 +42,18 @@ typedef struct
 
 } WorkerArgs;
 
-double my_clock(void) {
-  struct timeval t;
-  gettimeofday(&t, NULL);
-  return (1.0e-6*t.tv_usec + t.tv_sec);
-}
-
-
-// Global flag
-// Set to true when operating in debug mode to enable verbose logging
-static bool debug = false;
-
-
-void update_cell(int n, int n_bloat, double *curr, double *next, double *source, double delta2, int cell_index, int inner_index)
+/**
+ * @brief Updates the value of a single cell using Poissons equation
+ *
+ * @param n_bloat       The edge length of the bloated cube.
+ * @param curr          Pointer to the start of the cube in the current time step.
+ * @param next          Pointer to the start of the cube in the next time step.
+ * @param source        Pointer to the source term cube, a.k.a. forcing function.
+ * @param delta2        Grid spacing squared
+ * @param cell_index    Index of the current cell within the bloated cubes memory allocation
+ * @param inner_index   Index of the current cell within the inner cubes memory allocation
+ */
+void update_cell(int n_bloat, double *curr, double *next, double *source, double delta2, int cell_index, int inner_index)
 {
     int n_2 = n_bloat*n_bloat;
     *(next + cell_index) = (1.0/6.0) * (  *(curr + cell_index + 1) 
@@ -86,9 +65,15 @@ void update_cell(int n, int n_bloat, double *curr, double *next, double *source,
                                         - delta2 * *(source + inner_index));
 }
 
+/**
+ * @brief Updating ghost points
+ *
+ * @param n             The edge length of the inner cube.
+ * @param n_bloat       The edge length of the bloated cube.
+ * @param next          Pointer to the start of the cube in the next time step.
+ */
 void update_boundary(int n, int n_bloat, double *next)
 {
-    //Updating ghost points
     int n_2 = n_bloat*n_bloat;
         for (int k = 1; k <= n; k++)
         {
@@ -118,6 +103,13 @@ void update_boundary(int n, int n_bloat, double *next)
         } 
 }
 
+/**
+ * @brief Function that contains all of the operations for a single thread. Includes cycling through 
+ *        each time step, and cycling through each cell within that. Also waits for all other threads
+ *        to finish each timestep before proceeding.
+ *
+ * @param pargs     Arguments passed between threads.
+ */
 void* worker (void* pargs)
 {
     WorkerArgs* args = (WorkerArgs*)pargs;
@@ -130,28 +122,31 @@ void* worker (void* pargs)
                 {
                     int cell_index = i + (j * args->n_bloat) + (k * args->n_bloat * args->n_bloat);
                     int inner_index = (i-1) + ((j-1) * args->n) + ((k-1) * args->n * args->n);
-                    update_cell(args->n, args->n_bloat, args->curr, args->next, args->source, args->delta2, cell_index, inner_index);
+                    update_cell(args->n_bloat, args->curr, args->next, args->source, args->delta2, cell_index, inner_index);
                 } 
             } 
         }
     
+        //Mutex is used to protect variable accessed by multiple threads
         pthread_mutex_lock(&lock);
         threads_completed++;
         pthread_mutex_unlock(&lock);
 
+        //Only update boundary once all threads have finished
         if (threads_completed >= args->num_threads) {
             update_boundary(args->n, args->n_bloat, args->next);
             threads_completed = 0;
         }
-
+        
+        //Rendezvous point for threads to sychronise
         pthread_barrier_wait (&barrier);
 
+        //Switch pointers between current and next
         double* temp;
         temp = args->curr;
         args->curr = args->next;
         args->next = temp;
     }
-
 
     return NULL;
 }
@@ -178,11 +173,10 @@ double* poisson_neumann (int n, double *source, int iterations, int threads, flo
     double *next = (double*)calloc (n_bloat * n_bloat * n_bloat, sizeof (double));
 
     pthread_barrier_init (&barrier, NULL, threads);
+    pthread_mutex_init(&lock, NULL);
 
     pthread_t worker_threads[threads];
     WorkerArgs args[threads];
-
-    pthread_mutex_init(&lock, NULL);
 
     for (int i = 0; i < threads; i++)
     {   
@@ -233,19 +227,14 @@ int main (int argc, char **argv)
 {
     // Default settings for solver
     float delta = 1;
-    int iterations = 100;
-    int n = 101;
+    int iterations = 900;
+    int n = 301;
     int threads = 3;
 
 
     // parse the command line arguments
     for (int i = 1; i < argc; ++i)
     {
-        if (strcmp (argv[i], "-h") == 0 || strcmp (argv[i], "--help") == 0)
-        {
-            printf ("Usage: poisson [-n size] [-i iterations] [-t threads] [--debug]\n");
-            return EXIT_SUCCESS;
-        }
 
         if (strcmp (argv[i], "-n") == 0)
         {
@@ -268,22 +257,6 @@ int main (int argc, char **argv)
 
             iterations = atoi (argv[++i]);
         }
-
-        if (strcmp (argv[i], "-t") == 0)
-        {
-            if (i == argc - 1)
-            {
-                fprintf (stderr, "Error: expected threads after -t!\n");
-                return EXIT_FAILURE;
-            }
-
-            threads = atoi (argv[++i]);
-        }
-
-        if (strcmp (argv[i], "--debug") == 0)
-        {
-            debug = true;
-        }
     }
 
     // Create a source term with a single point in the centre
@@ -292,25 +265,18 @@ int main (int argc, char **argv)
     //Set source to single point charge in centre of volume
     source[(n * n * n) / 2] = 1/delta;
 
-    //Start timer
-    double begin = my_clock();
-
     // Calculate the resulting field with Neumann conditions
     double *result = poisson_neumann (n, source, iterations, threads, delta);
 
-    double end = my_clock();
-    double time_spent = (double)(end - begin);
-    printf ("Time taken: %0.5f \n", time_spent);
-
     // Print out the middle slice of the cube for validation
-    // for (int x = 0; x < n; ++x)
-    // {
-    //     for (int y = 0; y < n; ++y)
-    //     {
-    //         printf ("%0.5f ", result[((n / 2) * n + y) * n + x]);
-    //     }
-    //     printf ("\n");
-    // }
+    for (int x = 0; x < n; ++x)
+    {
+        for (int y = 0; y < n; ++y)
+        {
+            printf ("%0.5f ", result[((n / 2) * n + y) * n + x]);
+        }
+        printf ("\n");
+    }
 
     free (source);
     free (result);

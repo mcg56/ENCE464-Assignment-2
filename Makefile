@@ -1,9 +1,9 @@
 all: poisson
 
 # -g outputs debugging information
-# -Wall enables all warnings
+# -O3 optimises to highest level
 # -pthread configures threading
-CFLAGS = -g -Wall -pthread
+CFLAGS = -O3 -pg -g -pthread
 
 poisson: poisson.c
 
